@@ -32,7 +32,7 @@ pipeline {
         stage('MVN SONARQUBE') {
             steps {
                 script {
-                    withSonarQubeEnv("sonarqube") {
+                    withSonarQubeEnv("xd_wassim_YT") {
                     sh 'mvn sonar:sonar'
                     }
                 }
