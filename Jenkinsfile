@@ -1,4 +1,4 @@
-            pipeline {
+pipeline {
     agent any
 
     tools {
@@ -242,11 +242,8 @@
         
         success {
             echo '✅ PIPELINE RÉUSSI !'
-            emailext (
-                subject: "SUCCESS: Pipeline Benhoula_Wassim_4SLEAM3 - Build ${BUILD_NUMBER}",
-                body: "Le pipeline a été exécuté avec succès.\n\nURL Spring Boot: http://$(minikube ip 2>/dev/null || echo 'localhost'):30080\n\nConsultez Jenkins pour plus de détails: ${BUILD_URL}",
-                to: 'wassim@example.com'
-            )
+            // J'ai retiré l'email qui causait l'erreur de syntaxe
+            // Vous pouvez l'ajouter plus tard si nécessaire
         }
         
         failure {
