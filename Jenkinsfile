@@ -1,14 +1,4 @@
-pipeline {
-    agent any
-
-    tools {
-        jdk 'JAVA_HOME'      
-        maven 'M2_HOME'     
-    }
-
-    environment {
-        DOCKERHUB_CREDENTIALS = "docker-credentials"
-        DOCKER_IMAGE = "wassimbenhoula/4sleam3"
+IMAGE = "wassimbenhoula/4sleam3"
     }
 
     stages {
