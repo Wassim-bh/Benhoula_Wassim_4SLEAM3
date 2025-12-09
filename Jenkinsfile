@@ -53,6 +53,34 @@ pipeline {
                     }
                 }
             }
+	stage('Deploy to Kubernetes') {
+    steps {
+        script {
+            withCredentials([file(credentialsId: 'minikube-kubeconfig', variable: 'KUBECONFIG')]) {
+                sh '''
+                export KUBECONFIG=$KUBECONFIG
+                
+                echo "=== Déploiement MySQL ==="
+                kubectl apply -f k8s/mysql-secret.yaml
+                kubectl apply -f k8s/mysql-pv.yaml
+                kubectl apply -f k8s/mysql-deployment.yaml
+                
+                echo "Attente du démarrage de MySQL (30s)..."
+                sleep 30
+                
+                echo "=== Déploiement Spring Boot ==="
+                kubectl apply -f k8s/springboot-deployment.yaml
+                
+                echo "Attente du démarrage de Spring Boot (40s)..."
+                sleep 40
+                
+                echo "=== Vérification ==="
+                kubectl get all
+                '''
+            }
+        }
+    }
+}
         }
 
         
