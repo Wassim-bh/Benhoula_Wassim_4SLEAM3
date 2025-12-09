@@ -29,6 +29,16 @@ pipeline {
             }
         }
 
+        stage('MVN SONARQUBE') {
+            steps {
+                script {
+                    withSonarQubeEnv("sonarqube") {
+                    sh 'mvn sonar:sonar'
+                    }
+                }
+            }
+        }
+
         // Étape 3: Docker Build
         stage('🐳 Docker Build') {
             steps {
