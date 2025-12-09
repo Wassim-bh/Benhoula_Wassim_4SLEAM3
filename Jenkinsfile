@@ -1,4 +1,4 @@
-pipeline {
+            pipeline {
     agent any
 
     tools {
@@ -12,7 +12,7 @@ pipeline {
     }
 
     stages {
-        stage('GIT Clone') {
+        stage('GIT') {
             steps {
                 git branch: 'main',   
                     url: 'https://github.com/Wassim-bh/Benhoula_Wassim_4SLEAM3.git'
@@ -54,158 +54,219 @@ pipeline {
             }
         }
 
-        // =============== NOUVEAU STAGE KUBERNETES ===============
         stage('Setup Kubernetes Environment') {
             steps {
-                script {
-                    echo "=== SETUP KUBERNETES ENVIRONMENT ==="
-                    
-                    sh '''
-                    # Vérifier et installer kubectl si nécessaire
-                    if ! command -v kubectl &> /dev/null; then
-                        echo "Installing kubectl..."
-                        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-                        chmod +x kubectl
-                        sudo mv kubectl /usr/local/bin/
-                    fi
-                    
-                    # Vérifier et installer Minikube si nécessaire
-                    if ! command -v minikube &> /dev/null; then
-                        echo "Installing Minikube..."
-                        curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-                        sudo install minikube-linux-amd64 /usr/local/bin/minikube
-                    fi
-                    
-                    # Démarrer Minikube
-                    echo "Starting Minikube..."
-                    minikube start --memory=4096 --cpus=2 --driver=docker || minikube status
-                    
-                    # Vérifier
-                    echo "Kubernetes cluster status:"
-                    kubectl get nodes
-                    echo ""
-                    '''
-                }
+                sh '''
+                echo "=== SETUP KUBERNETES ==="
+                
+                # Vérifier si kubectl est installé
+                if ! command -v kubectl &> /dev/null; then
+                    echo "❌ kubectl n'est pas installé"
+                    echo "Installation en cours..."
+                    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                    chmod +x kubectl
+                    sudo mv kubectl /usr/local/bin/
+                else
+                    echo "✅ kubectl est installé"
+                fi
+                
+                # Vérifier si Minikube est installé
+                if ! command -v minikube &> /dev/null; then
+                    echo "❌ Minikube n'est pas installé"
+                    echo "Installation en cours..."
+                    curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+                    sudo install minikube-linux-amd64 /usr/local/bin/minikube
+                else
+                    echo "✅ Minikube est installé"
+                fi
+                
+                # Démarrer Minikube
+                echo "Démarrage de Minikube..."
+                minikube start --memory=4096 --cpus=2 --driver=docker || echo "Minikube déjà démarré ou erreur"
+                
+                # Vérifier le cluster
+                echo "Vérification du cluster Kubernetes..."
+                kubectl cluster-info || { echo "❌ Impossible de se connecter au cluster"; exit 1; }
+                kubectl get nodes || { echo "❌ Aucun nœud trouvé"; exit 1; }
+                
+                echo "✅ Environnement Kubernetes prêt"
+                '''
             }
         }
 
         stage('Deploy MySQL to Kubernetes') {
             steps {
-                script {
-                    echo "=== DEPLOYING MYSQL ==="
-                    
-                    sh '''
-                    # Déployer MySQL
-                    echo "1. Creating MySQL secret..."
-                    kubectl apply -f k8s/mysql-secret.yaml
-                    
-                    echo "2. Creating persistent volume..."
-                    kubectl apply -f k8s/mysql-pv.yaml
-                    
-                    echo "3. Deploying MySQL..."
-                    kubectl apply -f k8s/mysql-deployment.yaml
-                    
-                    # Attendre
-                    echo "Waiting for MySQL to start (30 seconds)..."
-                    sleep 30
-                    
-                    # Vérifier
-                    echo "MySQL status:"
-                    kubectl get pods -l app=mysql
-                    kubectl get svc mysql-service
-                    echo ""
-                    '''
-                }
+                sh '''
+                echo "=== DÉPLOIEMENT MYSQL ==="
+                
+                # Vérifier que les fichiers YAML existent
+                echo "Vérification des fichiers YAML..."
+                ls -la k8s/ || { echo "❌ Dossier k8s non trouvé"; exit 1; }
+                
+                # Déployer MySQL avec vérification d'erreur
+                echo "1. Création du secret MySQL..."
+                kubectl apply -f k8s/mysql-secret.yaml || { echo "❌ Échec de création du secret"; exit 1; }
+                
+                echo "2. Création du volume persistant..."
+                kubectl apply -f k8s/mysql-pv.yaml || { echo "❌ Échec de création du volume"; exit 1; }
+                
+                echo "3. Déploiement de MySQL..."
+                kubectl apply -f k8s/mysql-deployment.yaml || { echo "❌ Échec du déploiement MySQL"; exit 1; }
+                
+                echo "⏳ Attente du démarrage de MySQL (40 secondes)..."
+                sleep 40
+                
+                # Vérifier que MySQL tourne
+                echo "Vérification de l'état MySQL:"
+                kubectl get pods -l app=mysql || { echo "❌ Impossible de récupérer les pods MySQL"; exit 1; }
+                kubectl get svc mysql-service || { echo "❌ Service MySQL non trouvé"; exit 1; }
+                
+                # Afficher les logs MySQL pour vérification
+                echo "Logs MySQL (démarrage):"
+                kubectl logs -l app=mysql --tail=20 || echo "⚠️  Impossible de récupérer les logs MySQL"
+                
+                echo "✅ MySQL déployé avec succès"
+                '''
             }
         }
 
         stage('Deploy Spring Boot to Kubernetes') {
             steps {
-                script {
-                    echo "=== DEPLOYING SPRING BOOT ==="
-                    
-                    sh '''
-                    # Déployer Spring Boot
-                    echo "1. Deploying Spring Boot application..."
-                    kubectl apply -f k8s/springboot-deployment.yaml
-                    
-                    # Attendre
-                    echo "Waiting for Spring Boot to start (40 seconds)..."
-                    sleep 40
-                    
-                    # Vérifier
-                    echo "Spring Boot status:"
-                    kubectl get pods -l app=springboot-app
-                    kubectl get svc springboot-service
-                    echo ""
-                    '''
-                }
+                sh '''
+                echo "=== DÉPLOIEMENT SPRING BOOT ==="
+                
+                # Vérifier que le fichier YAML existe
+                if [ ! -f "k8s/springboot-deployment.yaml" ]; then
+                    echo "❌ Fichier springboot-deployment.yaml non trouvé"
+                    exit 1
+                fi
+                
+                # Déployer Spring Boot
+                echo "Déploiement de l'application Spring Boot..."
+                kubectl apply -f k8s/springboot-deployment.yaml || { echo "❌ Échec du déploiement Spring Boot"; exit 1; }
+                
+                echo "⏳ Attente du démarrage de Spring Boot (50 secondes)..."
+                sleep 50
+                
+                # Vérifier que Spring Boot tourne
+                echo "Vérification de l'état Spring Boot:"
+                kubectl get pods -l app=springboot-app || { echo "❌ Impossible de récupérer les pods Spring Boot"; exit 1; }
+                kubectl get svc springboot-service || { echo "❌ Service Spring Boot non trouvé"; exit 1; }
+                
+                # Afficher les logs Spring Boot pour vérification
+                echo "Logs Spring Boot (démarrage):"
+                SPRING_POD=$(kubectl get pods -l app=springboot-app -o jsonpath="{.items[0].metadata.name}" 2>/dev/null || echo "")
+                if [ -n "$SPRING_POD" ]; then
+                    kubectl logs $SPRING_POD --tail=30 || echo "⚠️  Impossible de récupérer les logs Spring Boot"
+                else
+                    echo "⚠️  Pod Spring Boot non trouvé"
+                fi
+                
+                echo "✅ Spring Boot déployé avec succès"
+                '''
             }
         }
 
         stage('Verify Deployment') {
             steps {
-                script {
-                    echo "=== VERIFYING DEPLOYMENT ==="
-                    
-                    sh '''
-                    # Afficher tout
-                    echo "All Kubernetes resources:"
-                    kubectl get all
-                    
-                    # Obtenir l'URL
-                    MINIKUBE_IP=$(minikube ip)
-                    NODE_PORT=$(kubectl get svc springboot-service -o jsonpath="{.spec.ports[0].nodePort}")
-                    
-                    echo ""
-                    echo "========================================"
-                    echo "🚀 DEPLOYMENT SUCCESSFUL!"
-                    echo "========================================"
-                    echo "Spring Boot Application URL:"
-                    echo "  http://$MINIKUBE_IP:$NODE_PORT"
-                    echo ""
-                    echo "Health Check:"
-                    echo "  http://$MINIKUBE_IP:$NODE_PORT/actuator/health"
-                    echo ""
-                    echo "MySQL Database:"
-                    echo "  Service: mysql-service:3306"
-                    echo "========================================"
-                    
-                    # Tester l'application
-                    echo "Testing application connectivity..."
-                    sleep 10
-                    
-                    if curl -f http://$MINIKUBE_IP:$NODE_PORT/actuator/health; then
-                        echo "✅ Application is responding!"
+                sh '''
+                echo "=== VÉRIFICATION DU DÉPLOIEMENT ==="
+                
+                # Afficher toutes les ressources
+                echo "Toutes les ressources Kubernetes:"
+                kubectl get all || { echo "❌ Impossible de récupérer les ressources"; exit 1; }
+                
+                # Obtenir l'URL d'accès
+                MINIKUBE_IP=$(minikube ip 2>/dev/null || echo "127.0.0.1")
+                NODE_PORT=$(kubectl get svc springboot-service -o jsonpath="{.spec.ports[0].nodePort}" 2>/dev/null || echo "30080")
+                
+                echo ""
+                echo "========================================"
+                echo "🌐 INFORMATIONS D'ACCÈS"
+                echo "========================================"
+                echo "Adresse IP Minikube: $MINIKUBE_IP"
+                echo "Port NodePort: $NODE_PORT"
+                echo "URL Spring Boot: http://$MINIKUBE_IP:$NODE_PORT"
+                echo "Health check: http://$MINIKUBE_IP:$NODE_PORT/actuator/health"
+                echo "========================================"
+                
+                # Tester l'application
+                echo "Test de connexion à l'application..."
+                for i in {1..10}; do
+                    echo "Tentative $i/10..."
+                    if curl -s -f http://$MINIKUBE_IP:$NODE_PORT/actuator/health > /dev/null 2>&1; then
+                        echo "✅ Application accessible!"
+                        curl -s http://$MINIKUBE_IP:$NODE_PORT/actuator/health | head -5
+                        break
                     else
-                        echo "⚠️ Application not responding, checking logs..."
-                        SPRING_POD=$(kubectl get pods -l app=springboot-app -o jsonpath="{.items[0].metadata.name}")
-                        kubectl logs $SPRING_POD --tail=20
+                        echo "⏳ Application non encore prête..."
+                        sleep 10
                     fi
-                    '''
-                }
+                done
+                
+                # Afficher les logs finaux
+                echo ""
+                echo "=== LOGS FINAUX ==="
+                echo "Pods:"
+                kubectl get pods -o wide
+                echo ""
+                echo "Services:"
+                kubectl get svc
+                echo ""
+                echo "Secrets:"
+                kubectl get secrets
+                echo ""
+                echo "Volumes persistants:"
+                kubectl get pv,pvc
+                '''
             }
         }
     }
     
     post {
-        success {
-            echo '✅ PIPELINE COMPLETED SUCCESSFULLY!'
+        always {
+            echo "=== RAPPORT FINAL ==="
             sh '''
-            echo "=== FINAL STATUS ==="
-            kubectl get pods
-            kubectl get svc
+            echo "Date: $(date)"
+            echo ""
+            echo "État final des pods:"
+            kubectl get pods 2>/dev/null || echo "kubectl non disponible"
+            echo ""
+            echo "Services exposés:"
+            kubectl get svc 2>/dev/null || echo "kubectl non disponible"
+            echo ""
+            MINIKUBE_IP=$(minikube ip 2>/dev/null || echo "Non disponible")
+            echo "IP Minikube: $MINIKUBE_IP"
             '''
         }
+        
+        success {
+            echo '✅ PIPELINE RÉUSSI !'
+            emailext (
+                subject: "SUCCESS: Pipeline Benhoula_Wassim_4SLEAM3 - Build ${BUILD_NUMBER}",
+                body: "Le pipeline a été exécuté avec succès.\n\nURL Spring Boot: http://$(minikube ip 2>/dev/null || echo 'localhost'):30080\n\nConsultez Jenkins pour plus de détails: ${BUILD_URL}",
+                to: 'wassim@example.com'
+            )
+        }
+        
         failure {
-            echo '❌ PIPELINE FAILED'
+            echo '❌ PIPELINE ÉCHOUÉ'
             sh '''
-            echo "=== TROUBLESHOOTING ==="
-            echo "Recent events:"
-            kubectl get events --sort-by='.lastTimestamp' | tail -20
+            echo "=== DÉPANNAGE ==="
+            echo "1. Vérifiez Minikube:"
+            minikube status 2>/dev/null || echo "Minikube non disponible"
             echo ""
-            echo "Pod details:"
-            kubectl describe pods
+            echo "2. Vérifiez les pods en erreur:"
+            kubectl get pods 2>/dev/null | grep -v Running | grep -v Completed || echo "kubectl non disponible"
+            echo ""
+            echo "3. Événements récents:"
+            kubectl get events --sort-by='.lastTimestamp' 2>/dev/null | tail -10 || echo "kubectl non disponible"
+            echo ""
+            echo "4. Logs MySQL (si disponible):"
+            kubectl logs -l app=mysql --tail=20 2>/dev/null || echo "Pas de logs MySQL"
+            echo ""
+            echo "5. Logs Spring Boot (si disponible):"
+            kubectl logs -l app=springboot-app --tail=20 2>/dev/null || echo "Pas de logs Spring Boot"
             '''
         }
     }
