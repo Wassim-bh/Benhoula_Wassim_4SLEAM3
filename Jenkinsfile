@@ -1,7 +1,9 @@
 pipeline {
     agent any
-
+    
     tools {
+        maven 'Maven 3.8.8'  // Name from Jenkins configuration
+        jdk 'JDK 11'
         jdk 'JAVA_HOME'      
         maven 'M2_HOME'     
     }
@@ -10,7 +12,7 @@ pipeline {
         DOCKERHUB_CREDENTIALS = "docker-credentials"
         DOCKER_IMAGE = "wassimbenhoula/4sleam3"
     }
-
+     
     stages {
         // Étape 1: Git Clone
         stage('📥 Git Clone') {
@@ -22,10 +24,9 @@ pipeline {
         }
 
         // Étape 2: Build Maven
-        stage('🔨 Build Maven') {
+         stage('🔨 Build Maven') {
             steps {
                 sh 'mvn clean package -DskipTests'
-                sh 'echo "✅ Application Spring Boot construite"'
             }
         }
 
