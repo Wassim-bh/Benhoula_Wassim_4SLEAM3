@@ -3,7 +3,7 @@ pipeline {
     
     tools {
         maven 'Maven 3.8.8'  // Name from Jenkins configuration
-        jdk 'JDK 11'
+        jdk 'jdk-11'
         jdk 'JAVA_HOME'      
         maven 'M2_HOME'     
     }
@@ -11,6 +11,8 @@ pipeline {
     environment {
         DOCKERHUB_CREDENTIALS = "docker-credentials"
         DOCKER_IMAGE = "wassimbenhoula/4sleam3"
+        JAVA_HOME = "${tool 'jdk-11'}"
+        M2_HOME = "${tool 'Maven-3.8.8'}"
     }
      
     stages {
